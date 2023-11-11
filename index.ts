@@ -1,18 +1,33 @@
 import { VerificationMethod, DIDDocument } from "did-resolver";
 import { base58btc } from "multiformats/bases/base58";
-import { getApi } from "./frequency.js";
+import { init, getApi, getChainType, ChainType, disconnectApi } from "./frequency.js";
 import { dsnp } from "@dsnp/frequency-schemas";
 import avro from "avro-js";
 import { registerDSNPResolver } from "@dsnp/did-resolver";
+import { ApiPromise } from "@polkadot/api";
 
 const publicKeyAvroSchema = avro.parse(dsnp.publicKey);
 
-// Register this resolver
-registerDSNPResolver(resolveFrequency);
+export async function pluginInit(options: {
+  providerUri: string;
+  frequencyNetwork: string;
+}) {
+  init(options);
+  api = await getApi();
+  // Register this resolver
+  registerDSNPResolver(resolveFrequency);
+}
 
-const api = await getApi();
+export async function pluginDestroy() {
+  await disconnectApi();
+}
 
-async function getPublicKeysForSchema(dsnpUserId: BigInt, schemaId: number): Promise<string[]> {
+let api: ApiPromise;
+
+async function getPublicKeysForSchema(
+  dsnpUserId: BigInt,
+  schemaId: number,
+): Promise<string[]> {
   const { items } = await api.rpc.statefulStorage.getItemizedStorage(
     dsnpUserId,
     schemaId,
@@ -31,32 +46,60 @@ async function getPublicKeysForSchema(dsnpUserId: BigInt, schemaId: number): Pro
   });
 }
 
+function makeVerificationMethod(
+  controller: string,
+  publicKeyMultibase: string,
+) {
+  return {
+    "@context": ["https://w3id.org/security/multikey/v1"],
+    id: `${controller}#${publicKeyMultibase}`,
+    type: "Multikey",
+    controller,
+    publicKeyMultibase,
+  };
+}
+
 async function resolveFrequency(
   dsnpUserId: BigInt,
 ): Promise<DIDDocument | null> {
   const controller = `did:dsnp:${dsnpUserId}`;
 
-  // Attempt to retrieve assertionMethod public key(s)
-  //const schemaId = getSchemaId(AnnouncementType.PublicKey_AssertionMethod);
-  const assertionMethodSchemaId = 100; // 100=Testnet, 11=Mainnet FIXME
+  // Attempt to retrieve public key(s)
+  let keyAgreementSchemaId: number;
+  let assertionMethodSchemaId: number;
 
-  const assertionMethodKeys = await getPublicKeysForSchema(dsnpUserId, assertionMethodSchemaId);
+  switch (getChainType()) {
+    case ChainType.Testnet:
+      keyAgreementSchemaId = 18;
+      assertionMethodSchemaId = 100;
+      break;
+    default:
+      keyAgreementSchemaId = 7;
+      assertionMethodSchemaId = 11;
+      break;
+  }
+
+  const assertionMethodKeys = await getPublicKeysForSchema(
+    dsnpUserId,
+    assertionMethodSchemaId,
+  );
   const assertionMethod = assertionMethodKeys.map((publicKeyMultibase) => {
-    return {
-      "@context": ["https://w3id.org/security/multikey/v1"],
-      id: `${controller}#${publicKeyMultibase}`,
-      type: "Multikey",
-      controller,
-      publicKeyMultibase,
-    };
+    return makeVerificationMethod(controller, publicKeyMultibase);
+  });
+
+  const keyAgreementKeys = await getPublicKeysForSchema(
+    dsnpUserId,
+    keyAgreementSchemaId,
+  );
+  const keyAgreement = keyAgreementKeys.map((publicKeyMultibase) => {
+    return makeVerificationMethod(controller, publicKeyMultibase);
   });
 
   // Return the DIDDocument object
   return {
-    "@context": [
-      "https://www.w3.org/ns/did/v1",
-    ],
+    "@context": ["https://www.w3.org/ns/did/v1"],
     id: `did:dsnp:${dsnpUserId}`,
     assertionMethod,
+    keyAgreement,
   };
 }

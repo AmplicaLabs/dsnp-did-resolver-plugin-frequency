@@ -2,33 +2,43 @@ import { options } from "@frequency-chain/api-augment";
 import { WsProvider, ApiPromise } from "@polkadot/api";
 
 // Environment Variables
-const providerUri = process.env.FREQUENCY_NODE;
-const frequencyNetwork = process.env.FREQUENCY_NETWORK;
+let providerUri: string | null = null;
+let frequencyNetwork: string | null = null;
 
-if (!providerUri) {
-  throw new Error("FREQUENCY_NODE env variable is required");
+export function init(options: {
+  providerUri: string;
+  frequencyNetwork: string;
+}) {
+  providerUri = options.providerUri;
+
+  if (!providerUri) {
+    throw new Error("providerUri is required");
+  }
+
+  frequencyNetwork = options.frequencyNetwork;
+  if (
+    !frequencyNetwork ||
+    !["local", "testnet", "mainnet"].includes(frequencyNetwork)
+  ) {
+    throw new Error(
+      'frequencyNetwork must be one of: "local", "testnet", "mainnet"',
+    );
+  }
 }
 
-if (
-  !frequencyNetwork ||
-  !["local", "testnet", "mainnet"].includes(frequencyNetwork)
-) {
-  throw new Error(
-    'FREQUENCY_NETWORK env variable must be one of: "local", "testnet", "mainnet"',
-  );
-}
-
-export const getNetwork = () =>
-  frequencyNetwork as "local" | "testnet" | "mainnet";
+export const getNetwork = () => {
+  if (!frequencyNetwork) {
+    throw new Error("please call init() first");
+  }
+  return frequencyNetwork as "local" | "testnet" | "mainnet";
+};
 
 // Reset
 export const disconnectApi = async () => {
   if (_singletonApi === null) return;
-
   const api = await getApi();
   await api.disconnect();
   _singletonApi = null;
-  return;
 };
 
 let _singletonApi: null | Promise<ApiPromise> = null;
@@ -39,7 +49,7 @@ export const getApi = (): Promise<ApiPromise> => {
   }
 
   if (!providerUri) {
-    throw new Error("FREQUENCY_NODE env variable is required");
+    throw new Error("please call init() first");
   }
 
   const provider = new WsProvider(providerUri);
