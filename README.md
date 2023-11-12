@@ -7,9 +7,9 @@ This package contains a plugin for the [@dsnp/did-resolver](https://github.com/L
 The plugin must be initialized with Frequency connection information.
 
 ```
-import { pluginInit, pluginDestroy } from "@dsnp/did-resolver-plugin-frequency";
+import { FrequencyResolver } from "@dsnp/did-resolver-plugin-frequency";
 
-await pluginInit({
+const frequencyResolver = new FrequencyResolver({
   providerUri: "ws://127.0.0.1:9944",
   frequencyNetwork: "local",
 });
@@ -31,19 +31,18 @@ Here's a full usage example with the DID resolver framework:
 ```
 import { Resolver } from "did-resolver";
 import dsnp from "@dsnp/did-resolver"; 
-import { pluginInit, pluginDestroy } from "@dsnp/did-resolver-plugin-frequency";
 
-await pluginInit({
+const frequencyResolver = new FrequencyResolver({
   providerUri: "wss://rpc.rococo.frequency.xyz",
   frequencyNetwork: "testnet"
 });
 
-const resolver = new Resolver(dsnp.getResolver());
+const resolver = new Resolver(dsnp.getResolver([frequencyResolver]));
 const myDid = "did:dsnp:13972";
 const result = await resolver.resolve(myDid);
 console.log(JSON.stringify(result, null, 2));
 
-await pluginDestroy();
+frequencyResolver.disconnect();
 
 /* Example output:
 {
