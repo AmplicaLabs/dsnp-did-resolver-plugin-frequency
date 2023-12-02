@@ -13,7 +13,7 @@ function makeVerificationMethod(
   publicKeyMultibase: string,
 ) {
   return {
-    "@context": ["https://w3id.org/security/multikey/v1"],
+    "@context": "https://w3id.org/security/multikey/v1",
     id: `${controller}#${publicKeyMultibase}`,
     type: "Multikey",
     controller,
@@ -22,15 +22,17 @@ function makeVerificationMethod(
 }
 
 export class FrequencyResolver implements DSNPResolver {
-  private providerUri: string;
+  private providerUri: string | null = null;
   private frequencyNetwork: string;
   private _singletonApi: Promise<ApiPromise> | null = null;
 
-  constructor(options: { providerUri: string; frequencyNetwork: string }) {
-    this.providerUri = options.providerUri;
-
-    if (!this.providerUri) {
-      throw new Error("providerUri is required");
+  constructor(options: { providerUri?: string; apiPromise?: Promise<ApiPromise>, frequencyNetwork: string }) {
+    if (options.providerUri) {
+      this.providerUri = options.providerUri;
+    } else if (options.apiPromise != null) {
+      this._singletonApi = options.apiPromise;
+    } else {
+      throw new Error("providerUri or apiPromise is required");
     }
 
     this.frequencyNetwork = options.frequencyNetwork;
@@ -47,7 +49,7 @@ export class FrequencyResolver implements DSNPResolver {
   async getApi(): Promise<ApiPromise> {
     if (this._singletonApi == null) {
       this._singletonApi = ApiPromise.create({
-        provider: new WsProvider(this.providerUri),
+        provider: new WsProvider(this.providerUri as string),
         throwOnConnect: true,
         ...options,
       });

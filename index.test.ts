@@ -1,12 +1,31 @@
 import { expect, jest, test } from "@jest/globals";
 import { FrequencyResolver } from "./index.js";
+import { ApiPromise, WsProvider } from "@polkadot/api";
+import { options } from "@frequency-chain/api-augment";
 
-describe("dsnp-did-resolver-plugin-frequency", () => {
-  it("can be constructed", async () => {
-    const _resolver = new FrequencyResolver({
+describe("dsnp-did-resolver-frequency", () => {
+  it("can be constructed with providerUri", async () => {
+    const resolver = new FrequencyResolver({
       providerUri: "ws://127.0.0.1:9944",
       frequencyNetwork: "local",
     });
+
+    await resolver.disconnect();
+  });
+
+  it("can be constructed with apiPromise", async () => {
+    const apiPromise = ApiPromise.create({
+      provider: new WsProvider("ws://127.0.0.1:9944"),
+      throwOnConnect: true,
+      ...options,
+    });
+
+    const resolver = new FrequencyResolver({
+      apiPromise,
+      frequencyNetwork: "local",
+    });
+
+    await resolver.disconnect();
   });
 
   /* Need to mock for this...

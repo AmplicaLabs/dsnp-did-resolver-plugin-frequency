@@ -1,13 +1,19 @@
 # Overview
 
-This package contains a plugin for the [@dsnp/did-resolver](https://github.com/LibertyDSNP/dsnp-did-resolver) library which enables resolution of `did:dsnp:*` DIDs on the [Frequency](https://github.com/LibertyDSNP/frequency) blockchain.
+This package contains a resolver for the [@dsnp/did-resolver](https://github.com/LibertyDSNP/dsnp-did-resolver) library which enables resolution of `did:dsnp:*` DIDs on the [Frequency](https://github.com/LibertyDSNP/frequency) blockchain.
+
+# Installation
+
+`npm install @dsnp/did-resolver-frequency`
 
 # Usage
 
-The plugin must be initialized with Frequency connection information.
+The resolver object can be constructed with Frequency connection information in one of two ways.
+
+1. Construct with provider URI:
 
 ```
-import { FrequencyResolver } from "@dsnp/did-resolver-plugin-frequency";
+import { FrequencyResolver } from "@dsnp/did-resolver-frequency";
 
 const frequencyResolver = new FrequencyResolver({
   providerUri: "ws://127.0.0.1:9944",
@@ -15,13 +21,29 @@ const frequencyResolver = new FrequencyResolver({
 });
 ```
 
-The plugin will automatically register itself with the DSNP DID resolver when initialized.
+If constructed this way, you must call `disconnect()` to explicitly release the connection; the process will not exit if this is not done.
 
-The following options must be provided:
+or,
+
+2. Construct with preconfigured `ApiPromise` object from `@polkadot/api`:
+
+```
+import { FrequencyResolver } from "@dsnp/did-resolver-frequency";
+
+const frequencyResolver = new FrequencyResolver({
+  apiPromise: myApiPromise, // from ApiPromise.create(...)
+  frequencyNetwork: "local",
+});
+```
+
+The `frequencyNetwork` key is required in both cases (this is expected to be unnecessary with Frequency schema naming in the future).
+
+Summary of options:
 
 | Configuration option | Description |
 | --- | --- |
-| `providerUri` | Provider URI for Frequency RPC node |
+| `providerUri` | Provider URI for Frequency RPC node (optional; alternative to `apiPromise` |
+| `apiPromise` | An `ApiPromise` object (optional; alternative to `providerUri` |
 | `frequencyNetwork` | One of `local`, `testnet`, `mainnet` |
 
 See `.env.example` for example configuration.
@@ -56,15 +78,14 @@ frequencyResolver.disconnect();
     "id": "did:dsnp:13972",
     "assertionMethod": [
       {
-        "@context": [
-          "https://w3id.org/security/multikey/v1"
-        ],
+        "@context": "https://w3id.org/security/multikey/v1",
         "id": "did:dsnp:13972#z6MkuzE4hBVHTmwFff37ZuPQs9sbkdJo8jifN9sZ1jXbgyMp",
         "type": "Multikey",
         "controller": "did:dsnp:13972",
         "publicKeyMultibase": "z6MkuzE4hBVHTmwFff37ZuPQs9sbkdJo8jifN9sZ1jXbgyMp"
       }
-    ]
+    ],
+    "keyAgreement": []
   },
   "didDocumentMetadata": {}
 }
@@ -82,7 +103,7 @@ npm run resolve -- 13972
 
 # Features
 
-Currently this plugin implements the minimal functionality required to support lookup of public keys by DSNP applications.
+Currently this resolver implements the minimal functionality required to support lookup of public keys by DSNP applications.
 
 - DSNP public keys with `keyType` 1 are listed in the `keyAgreement` array.
 - DSNP public keys with `keyType` 2 are listed in the `assertionMethod` array.
