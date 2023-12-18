@@ -5,7 +5,6 @@ import { FrequencyResolver } from "../dist/index.js";
 
 const frequencyResolver = new FrequencyResolver({
   providerUri: process.env.FREQUENCY_NODE,
-  frequencyNetwork: process.env.FREQUENCY_NETWORK,
 });
 
 const resolver = new Resolver(getResolver([frequencyResolver]));

@@ -5,8 +5,14 @@ import { DSNPResolver } from "@dsnp/did-resolver";
 import avro from "avro-js";
 import { options } from "@frequency-chain/api-augment";
 import { WsProvider, ApiPromise } from "@polkadot/api";
+import { xxhashAsHex } from "@polkadot/util-crypto";
+import { bnToU8a, u8aToHex } from "@polkadot/util";
 
 const publicKeyAvroSchema = avro.parse(dsnp.publicKey);
+
+const keyCountStorageKeyHex =
+  xxhashAsHex("Msa", 128) +
+  xxhashAsHex("PublicKeyCountForMsaId", 128).substring(2);
 
 function makeVerificationMethod(
   controller: string,
@@ -23,26 +29,21 @@ function makeVerificationMethod(
 
 export class FrequencyResolver implements DSNPResolver {
   private providerUri: string | null = null;
-  private frequencyNetwork: string;
   private _singletonApi: Promise<ApiPromise> | null = null;
+  private keyAgreementSchemaId: number | null = null;
+  private assertionMethodSchemaId: number | null = null;
+  private initialized: boolean = false;
 
-  constructor(options: { providerUri?: string; apiPromise?: Promise<ApiPromise>, frequencyNetwork: string }) {
+  constructor(options: {
+    providerUri?: string;
+    apiPromise?: Promise<ApiPromise>;
+  }) {
     if (options.providerUri) {
       this.providerUri = options.providerUri;
     } else if (options.apiPromise != null) {
       this._singletonApi = options.apiPromise;
     } else {
       throw new Error("providerUri or apiPromise is required");
-    }
-
-    this.frequencyNetwork = options.frequencyNetwork;
-    if (
-      !this.frequencyNetwork ||
-      !["local", "testnet", "mainnet"].includes(this.frequencyNetwork)
-    ) {
-      throw new Error(
-        'frequencyNetwork must be one of: "local", "testnet", "mainnet"',
-      );
     }
   }
 
@@ -54,7 +55,6 @@ export class FrequencyResolver implements DSNPResolver {
         ...options,
       });
     }
-
     return this._singletonApi;
   }
 
@@ -83,26 +83,37 @@ export class FrequencyResolver implements DSNPResolver {
   }
 
   async resolve(dsnpUserId: bigint): Promise<DIDDocument | null> {
-    const controller = `did:dsnp:${dsnpUserId}`;
-
-    // Attempt to retrieve public key(s)
-    let keyAgreementSchemaId: number;
-    let assertionMethodSchemaId: number;
-
-    switch (this.frequencyNetwork) {
-      case "testnet":
-        keyAgreementSchemaId = 18;
-        assertionMethodSchemaId = 100;
-        break;
-      default:
-        keyAgreementSchemaId = 7;
-        assertionMethodSchemaId = 11;
-        break;
+    if (!this.initialized) {
+      const api: Promise<ApiPromise> = this.getApi();
+      // Get the appropriate schemaIds for the chain we're connecting to
+      this.keyAgreementSchemaId = await dsnp.getSchemaId(
+        api,
+        "public-key-key-agreement",
+      );
+      this.assertionMethodSchemaId = await dsnp.getSchemaId(
+        api,
+        "public-key-assertion-method",
+      );
+      this.initialized = true;
     }
 
+    // Determine if MSA exists by checking public key count
+    const msaUint8a = bnToU8a(dsnpUserId, { bitLength: 64 });
+    const key =
+      keyCountStorageKeyHex +
+      xxhashAsHex(msaUint8a).substring(2) +
+      u8aToHex(msaUint8a).substring(2);
+    const result = await (await this.getApi()).rpc.state.getStorage(key);
+    if (Number(result) == 0) {
+      return null;
+    }
+
+    const controller = `did:dsnp:${dsnpUserId}`;
+
+    // Retrieve public key(s)
     const assertionMethodKeys = await this.getPublicKeysForSchema(
       dsnpUserId,
-      assertionMethodSchemaId,
+      this.assertionMethodSchemaId!,
     );
     const assertionMethod = assertionMethodKeys.map(
       (publicKeyMultibase: string) => {
@@ -112,7 +123,7 @@ export class FrequencyResolver implements DSNPResolver {
 
     const keyAgreementKeys = await this.getPublicKeysForSchema(
       dsnpUserId,
-      keyAgreementSchemaId,
+      this.keyAgreementSchemaId!,
     );
     const keyAgreement = keyAgreementKeys.map((publicKeyMultibase) => {
       return makeVerificationMethod(controller, publicKeyMultibase);

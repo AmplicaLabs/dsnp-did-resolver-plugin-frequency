@@ -17,7 +17,6 @@ import { FrequencyResolver } from "@dsnp/did-resolver-frequency";
 
 const frequencyResolver = new FrequencyResolver({
   providerUri: "ws://127.0.0.1:9944",
-  frequencyNetwork: "local",
 });
 ```
 
@@ -25,26 +24,22 @@ If constructed this way, you must call `disconnect()` to explicitly release the 
 
 or,
 
-2. Construct with preconfigured `ApiPromise` object from `@polkadot/api`:
+2. Construct with preconfigured `Promise<ApiPromise>` object from `@polkadot/api`:
 
 ```
 import { FrequencyResolver } from "@dsnp/did-resolver-frequency";
 
 const frequencyResolver = new FrequencyResolver({
   apiPromise: myApiPromise, // from ApiPromise.create(...)
-  frequencyNetwork: "local",
 });
 ```
-
-The `frequencyNetwork` key is required in both cases (this is expected to be unnecessary with Frequency schema naming in the future).
 
 Summary of options:
 
 | Configuration option | Description |
 | --- | --- |
 | `providerUri` | Provider URI for Frequency RPC node (optional; alternative to `apiPromise` |
-| `apiPromise` | An `ApiPromise` object (optional; alternative to `providerUri` |
-| `frequencyNetwork` | One of `local`, `testnet`, `mainnet` |
+| `apiPromise` | A `Promise<ApiPromise>` (optional; alternative to `providerUri` |
 
 See `.env.example` for example configuration.
 
@@ -56,7 +51,6 @@ import dsnp from "@dsnp/did-resolver";
 
 const frequencyResolver = new FrequencyResolver({
   providerUri: "wss://rpc.rococo.frequency.xyz",
-  frequencyNetwork: "testnet"
 });
 
 const resolver = new Resolver(dsnp.getResolver([frequencyResolver]));
@@ -111,8 +105,3 @@ Currently this resolver implements the minimal functionality required to support
 Public keys are encoded using the `Multikey` type.
 The `id` consists of the DSNP DID and a URL fragment that is the same as the `publicKeyMultibase` value, which is a multicodec value in `base58btc` encoding.
 The decoded value for `ed25519-pub` keys will be 34 bytes, including the two-byte multicodec identifier.
-
-## Known issues
-
-- The resolver currently responds with a DID document for any valid-looking DSNP DID.
-  It should return a `notFound` error if there is no corresponding Frequency MSA.
