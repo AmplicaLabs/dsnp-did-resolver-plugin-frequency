@@ -7,12 +7,12 @@ describe("dsnp-did-resolver-frequency", () => {
   it("can be constructed with providerUri", async () => {
     const resolver = new FrequencyResolver({
       providerUri: "ws://127.0.0.1:9944",
-      frequencyNetwork: "local",
     });
 
     await resolver.disconnect();
   });
 
+  /* TODO needs mocking
   it("can be constructed with apiPromise", async () => {
     const apiPromise = ApiPromise.create({
       provider: new WsProvider("ws://127.0.0.1:9944"),
@@ -22,13 +22,13 @@ describe("dsnp-did-resolver-frequency", () => {
 
     const resolver = new FrequencyResolver({
       apiPromise,
-      frequencyNetwork: "local",
     });
 
     await resolver.disconnect();
   });
+  */
 
-  /* Need to mock for this...
+  /* TODO needs mocking
   it("resolves did:dsnp:13972", async () => {
     const myDid = "did:dsnp:13972";
     const result = await resolver.resolve(myDid);
