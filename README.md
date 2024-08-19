@@ -43,45 +43,41 @@ Summary of options:
 
 See `.env.example` for example configuration.
 
-Here's a full usage example with the DID resolver framework:
+Here's a full usage example with the `did-io` DID resolver framework:
 
 ```
-import { Resolver } from "did-resolver";
-import dsnp from "@dsnp/did-resolver"; 
+import { CachedResolver } from "@digitalbazaar/did-io";
+import didDsnp from "@dsnp/did-resolver"; 
+import { FrequencyResolver } from "@dsnp/did-resolver-frequency";
 
 const frequencyResolver = new FrequencyResolver({
-  providerUri: "wss://rpc.rococo.frequency.xyz",
+  providerUri: "wss://1.rpc.frequency.xyz",
 });
 
-const resolver = new Resolver(dsnp.getResolver([frequencyResolver]));
-const myDid = "did:dsnp:13972";
-const result = await resolver.resolve(myDid);
+const resolver = new CachedResolver();
+resolver.use(didDsnp.driver([ frequencyResolver ]));
+const did = "did:dsnp:123456";
+const result = await resolver.get({ did });
 console.log(JSON.stringify(result, null, 2));
 
-frequencyResolver.disconnect();
+await frequencyResolver.disconnect();
 
 /* Example output:
 {
-  "didResolutionMetadata": {
-    "contentType": "application/did+ld+json"
-  },
-  "didDocument": {
-    "@context": [
-      "https://www.w3.org/ns/did/v1"
-    ],
-    "id": "did:dsnp:13972",
-    "assertionMethod": [
-      {
-        "@context": "https://w3id.org/security/multikey/v1",
-        "id": "did:dsnp:13972#z6MkuzE4hBVHTmwFff37ZuPQs9sbkdJo8jifN9sZ1jXbgyMp",
-        "type": "Multikey",
-        "controller": "did:dsnp:13972",
-        "publicKeyMultibase": "z6MkuzE4hBVHTmwFff37ZuPQs9sbkdJo8jifN9sZ1jXbgyMp"
-      }
-    ],
-    "keyAgreement": []
-  },
-  "didDocumentMetadata": {}
+  "@context": [
+    "https://www.w3.org/ns/did/v1"
+  ],
+  "id": "did:dsnp:1",
+  "assertionMethod": [
+    {
+      "@context": "https://w3id.org/security/multikey/v1",
+      "id": "did:dsnp:1#z6MktEsFq4c5qFZkj3wq5FZDurXLpG1s9gD7oWDZoS8S5F27",
+      "type": "Multikey",
+      "controller": "did:dsnp:1",
+      "publicKeyMultibase": "z6MktEsFq4c5qFZkj3wq5FZDurXLpG1s9gD7oWDZoS8S5F27"
+    }
+  ],
+  "keyAgreement": []
 }
 */
 ```
@@ -92,6 +88,7 @@ The example above is provided as a command line script.
 
 ```
 cp .env.example .env
+# uncomment the desired node endpoint
 npm run resolve -- 13972
 ```
 
@@ -99,8 +96,8 @@ npm run resolve -- 13972
 
 Currently this resolver implements the minimal functionality required to support lookup of public keys by DSNP applications.
 
-- DSNP public keys with `keyType` 1 are listed in the `keyAgreement` array.
-- DSNP public keys with `keyType` 2 are listed in the `assertionMethod` array.
+- DSNP `keyAgreementPublicKeys` are listed in the `keyAgreement` array.
+- DSNP `assertionMethodPublicKeys` are listed in the `assertionMethod` array.
 
 Public keys are encoded using the `Multikey` type.
 The `id` consists of the DSNP DID and a URL fragment that is the same as the `publicKeyMultibase` value, which is a multicodec value in `base58btc` encoding.

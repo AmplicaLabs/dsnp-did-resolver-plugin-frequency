@@ -1,4 +1,3 @@
-import { VerificationMethod, DIDDocument } from "did-resolver";
 import { base58btc } from "multiformats/bases/base58";
 import { dsnp } from "@dsnp/frequency-schemas";
 import { DSNPResolver } from "@dsnp/did-resolver";
@@ -14,10 +13,18 @@ const keyCountStorageKeyHex =
   xxhashAsHex("Msa", 128) +
   xxhashAsHex("PublicKeyCountForMsaId", 128).substring(2);
 
+type VerificationMethod = {
+  "@context": "https://w3id.org/security/multikey/v1";
+  id: string;
+  type: "Multikey";
+  controller: string;
+  publicKeyMultibase: string;
+};
+
 function makeVerificationMethod(
   controller: string,
   publicKeyMultibase: string,
-) {
+): VerificationMethod {
   return {
     "@context": "https://w3id.org/security/multikey/v1",
     id: `${controller}#${publicKeyMultibase}`,
@@ -75,14 +82,20 @@ export class FrequencyResolver implements DSNPResolver {
 
     return items.map((item: { payload: Uint8Array }) => {
       const payloadAvro = item.payload;
-      const publicKeyMulticodec = publicKeyAvroSchema.fromBuffer(
+      const onChainPublicKey = publicKeyAvroSchema.fromBuffer(
         Buffer.from(payloadAvro),
       ).publicKey;
+      // Work around keys stored without multicodec
+      const publicKeyMulticodec =
+        onChainPublicKey.length === 32
+          ? new Uint8Array([0xec, 0x01, ...onChainPublicKey])
+          : onChainPublicKey;
+
       return base58btc.encode(publicKeyMulticodec);
     });
   }
 
-  async resolve(dsnpUserId: bigint): Promise<DIDDocument | null> {
+  async resolve(dsnpUserId: bigint): Promise<object | null> {
     if (!this.initialized) {
       const api: Promise<ApiPromise> = this.getApi();
       // Get the appropriate schemaIds for the chain we're connecting to
@@ -90,10 +103,14 @@ export class FrequencyResolver implements DSNPResolver {
         api,
         "public-key-key-agreement",
       );
-      this.assertionMethodSchemaId = await dsnp.getSchemaId(
-        api,
-        "public-key-assertion-method",
-      );
+      try {
+        this.assertionMethodSchemaId = await dsnp.getSchemaId(
+          api,
+          "public-key-assertion-method",
+        );
+      } catch (e) {
+        this.assertionMethodSchemaId = null;
+      }
       this.initialized = true;
     }
 
@@ -110,16 +127,19 @@ export class FrequencyResolver implements DSNPResolver {
 
     const controller = `did:dsnp:${dsnpUserId}`;
 
-    // Retrieve public key(s)
-    const assertionMethodKeys = await this.getPublicKeysForSchema(
-      dsnpUserId,
-      this.assertionMethodSchemaId!,
-    );
-    const assertionMethod = assertionMethodKeys.map(
-      (publicKeyMultibase: string) => {
-        return makeVerificationMethod(controller, publicKeyMultibase);
-      },
-    );
+    let assertionMethod: VerificationMethod[] = [];
+    if (this.assertionMethodSchemaId) {
+      // Retrieve public key(s)
+      const assertionMethodKeys = await this.getPublicKeysForSchema(
+        dsnpUserId,
+        this.assertionMethodSchemaId!,
+      );
+      assertionMethod = assertionMethodKeys.map(
+        (publicKeyMultibase: string) => {
+          return makeVerificationMethod(controller, publicKeyMultibase);
+        },
+      );
+    }
 
     const keyAgreementKeys = await this.getPublicKeysForSchema(
       dsnpUserId,
@@ -129,7 +149,7 @@ export class FrequencyResolver implements DSNPResolver {
       return makeVerificationMethod(controller, publicKeyMultibase);
     });
 
-    // Return the DIDDocument object
+    // Return the DID document object
     return {
       "@context": ["https://www.w3.org/ns/did/v1"],
       id: `did:dsnp:${dsnpUserId}`,
