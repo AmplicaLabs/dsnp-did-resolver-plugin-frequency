@@ -10,5 +10,5 @@
     "strict": true,
     "skipLibCheck": true
   },
-  "exclude": ["node_modules/**", "jest.config.*", "**/*.test.ts", "./dist/**"]
+  "exclude": ["node_modules/**", "jest.config.*", "**/*.test.ts", "./dist/**", "demo/**"]
 }
