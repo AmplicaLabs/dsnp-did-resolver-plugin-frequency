@@ -29,17 +29,17 @@
     "@digitalbazaar/did-io": "^2.0.0",
     "@dsnp/did-resolver": "^0.0.4",
     "@dsnp/frequency-schemas": "^1.1.0",
-    "@frequency-chain/api-augment": "^1.10.0",
-    "@polkadot/api": "^10.9.1",
-    "avro-js": "^1.11.3",
-    "multiformats": "^13.0.0"
+    "@frequency-chain/api-augment": "^1.12.0",
+    "@polkadot/api": "^11.3.1",
+    "avsc": "^5.7.7",
+    "multiformats": "^13.2.2"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",
-    "@types/node": "^20.10.7",
+    "@types/node": "^20.16.1",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
-    "dotenv": "^16.3.1",
+    "dotenv": "^16.4.5",
     "eslint": "^8.57.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-import": "^2.29.1",
@@ -50,5 +50,11 @@
     "ts-jest": "^29.2.4",
     "ts-node": "^10.9.2",
     "typescript": "^5.5.4"
+  },
+  "overrides": {
+    "@dsnp/frequency-schemas": {
+      "@frequency-chain/api-augment": "^1.12.0",
+      "@polkadot/api": "^11.3.1"
+    }
   }
 }

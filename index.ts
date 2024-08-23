@@ -1,17 +1,26 @@
+import avro from "avsc";
 import { base58btc } from "multiformats/bases/base58";
 import { dsnp } from "@dsnp/frequency-schemas";
 import { DSNPResolver } from "@dsnp/did-resolver";
-import avro from "avro-js";
 import { options } from "@frequency-chain/api-augment";
 import { WsProvider, ApiPromise } from "@polkadot/api";
+import { bnToU8a, u8aToHex, hexToString } from "@polkadot/util";
 import { xxhashAsHex } from "@polkadot/util-crypto";
-import { bnToU8a, u8aToHex } from "@polkadot/util";
 
-const publicKeyAvroSchema = avro.parse(dsnp.publicKey);
+const publicKeyAvroSchema = avro.Type.forSchema(dsnp.publicKey as avro.Schema);
 
-const keyCountStorageKeyHex =
-  xxhashAsHex("Msa", 128) +
-  xxhashAsHex("PublicKeyCountForMsaId", 128).substring(2);
+function storageItemKeyAsHex(module: string, method: string) {
+  return xxhashAsHex(module, 128) + xxhashAsHex(method, 128).substring(2);
+}
+
+const keyCountStorageKeyHex = storageItemKeyAsHex(
+  "Msa",
+  "PublicKeyCountForMsaId",
+);
+const displayNameStorageKeyHex = storageItemKeyAsHex(
+  "Handles",
+  "MSAIdToDisplayName",
+);
 
 type VerificationMethod = {
   "@context": "https://w3id.org/security/multikey/v1";
@@ -95,44 +104,83 @@ export class FrequencyResolver implements DSNPResolver {
     });
   }
 
-  async resolve(dsnpUserId: bigint): Promise<object | null> {
-    if (!this.initialized) {
-      const api: Promise<ApiPromise> = this.getApi();
-      // Get the appropriate schemaIds for the chain we're connecting to
+  private async initialize() {
+    const api: Promise<ApiPromise> = this.getApi();
+
+    // Get the appropriate schemaIds for the chain we're connecting to
+    try {
       this.keyAgreementSchemaId = await dsnp.getSchemaId(
         api,
         "public-key-key-agreement",
       );
-      try {
-        this.assertionMethodSchemaId = await dsnp.getSchemaId(
-          api,
-          "public-key-assertion-method",
-        );
-      } catch (e) {
-        this.assertionMethodSchemaId = null;
-      }
-      this.initialized = true;
+    } catch (e) {
+      this.keyAgreementSchemaId = null;
     }
+
+    try {
+      this.assertionMethodSchemaId = await dsnp.getSchemaId(
+        api,
+        "public-key-assertion-method",
+      );
+    } catch (e) {
+      this.assertionMethodSchemaId = null;
+    }
+    this.initialized = true;
+  }
+
+  async resolve(dsnpUserId: bigint): Promise<object | null> {
+    if (!this.initialized) {
+      this.initialize();
+    }
+
+    const api = await this.getApi();
 
     // Determine if MSA exists by checking public key count
     const msaUint8a = bnToU8a(dsnpUserId, { bitLength: 64 });
-    const key =
+    const keyCountKey =
       keyCountStorageKeyHex +
       xxhashAsHex(msaUint8a).substring(2) +
       u8aToHex(msaUint8a).substring(2);
-    const result = await (await this.getApi()).rpc.state.getStorage(key);
-    if (Number(result) == 0) {
+    const keyCountResult = await api.rpc.state.getStorage(keyCountKey);
+    if (Number(keyCountResult) == 0) {
       return null;
     }
 
     const controller = `did:dsnp:${dsnpUserId}`;
+    const authentication: VerificationMethod[] = [];
+
+    // msa.getKeysByMsaId: Option<KeyInfoResponse>
+    const keysResult = await api.rpc.msa.getKeysByMsaId(msaUint8a);
+    for (const msa_key of keysResult.unwrap().msa_keys) {
+      authentication.push(
+        makeVerificationMethod(
+          controller,
+          base58btc.encode(new Uint8Array([0xef, 0x01, ...msa_key.toU8a()])),
+        ),
+      );
+    }
+
+    // Get handle if exists
+    const handleKey =
+      displayNameStorageKeyHex +
+      xxhashAsHex(msaUint8a).substring(2) +
+      u8aToHex(msaUint8a).substring(2);
+
+    const handleResult = await api.rpc.state.getStorage(handleKey);
+
+    let handle;
+    // bytes are: scale-encoded length + handle.xx + u32 blocknum
+    if (handleResult) {
+      let hexStr = handleResult.toString();
+      handle = hexToString("0x" + hexStr.substring(4, hexStr.length - 8));
+    }
+    const alsoKnownAs = handle ? ["did:frqcy:handle:" + handle] : [];
 
     let assertionMethod: VerificationMethod[] = [];
     if (this.assertionMethodSchemaId) {
-      // Retrieve public key(s)
       const assertionMethodKeys = await this.getPublicKeysForSchema(
         dsnpUserId,
-        this.assertionMethodSchemaId!,
+        this.assertionMethodSchemaId,
       );
       assertionMethod = assertionMethodKeys.map(
         (publicKeyMultibase: string) => {
@@ -141,20 +189,25 @@ export class FrequencyResolver implements DSNPResolver {
       );
     }
 
-    const keyAgreementKeys = await this.getPublicKeysForSchema(
-      dsnpUserId,
-      this.keyAgreementSchemaId!,
-    );
-    const keyAgreement = keyAgreementKeys.map((publicKeyMultibase) => {
-      return makeVerificationMethod(controller, publicKeyMultibase);
-    });
+    let keyAgreement: VerificationMethod[] = [];
+    if (this.keyAgreementSchemaId) {
+      const keyAgreementKeys = await this.getPublicKeysForSchema(
+        dsnpUserId,
+        this.keyAgreementSchemaId,
+      );
+      keyAgreement = keyAgreementKeys.map((publicKeyMultibase) => {
+        return makeVerificationMethod(controller, publicKeyMultibase);
+      });
+    }
 
     // Return the DID document object
     return {
       "@context": ["https://www.w3.org/ns/did/v1"],
       id: `did:dsnp:${dsnpUserId}`,
+      authentication,
       assertionMethod,
       keyAgreement,
+      alsoKnownAs,
     };
   }
 }
