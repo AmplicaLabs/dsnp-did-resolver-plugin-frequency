@@ -96,9 +96,11 @@ npm run resolve -- 13972
 
 Currently this resolver implements the minimal functionality required to support lookup of public keys by DSNP applications.
 
+- DSNP control keys are listed in the `authentication` array.
 - DSNP `keyAgreementPublicKeys` are listed in the `keyAgreement` array.
 - DSNP `assertionMethodPublicKeys` are listed in the `assertionMethod` array.
+- A user's Frequency handle, if one exists, is noted in the `alsoKnownAs` array with a `did:frqcy:handle:` prefix.
 
-Public keys are encoded using the `Multikey` type.
+All public keys are encoded using the `Multikey` type.
 The `id` consists of the DSNP DID and a URL fragment that is the same as the `publicKeyMultibase` value, which is a multicodec value in `base58btc` encoding.
 The decoded value for `ed25519-pub` keys will be 34 bytes, including the two-byte multicodec identifier.
