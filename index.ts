@@ -105,13 +105,14 @@ export class FrequencyResolver implements DSNPResolver {
   }
 
   private async initialize() {
-    const api: Promise<ApiPromise> = this.getApi();
+    const api = await this.getApi();
 
     // Get the appropriate schemaIds for the chain we're connecting to
     try {
       this.keyAgreementSchemaId = await dsnp.getSchemaId(
-        api,
         "public-key-key-agreement",
+        "1.2",
+        api.genesisHash.toString(),
       );
     } catch (e) {
       this.keyAgreementSchemaId = null;
@@ -119,8 +120,9 @@ export class FrequencyResolver implements DSNPResolver {
 
     try {
       this.assertionMethodSchemaId = await dsnp.getSchemaId(
-        api,
         "public-key-assertion-method",
+        "1.3",
+        api.genesisHash.toString(),
       );
     } catch (e) {
       this.assertionMethodSchemaId = null;
