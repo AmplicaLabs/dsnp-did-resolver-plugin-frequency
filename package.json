@@ -10,7 +10,7 @@
     "clean": "rm -Rf dist",
     "prepackage": "cp CONTRIBUTING.md README.md LICENSE ./dist",
     "package": "node --no-warnings scripts/package.js",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test": "echo no tests yet",
     "format": "tsc --noEmit --pretty && eslint --fix \"*.ts\"",
     "lint": "tsc --noEmit --pretty && eslint \"*.ts\"",
     "resolve": "npm run build && node scripts/resolve.js"
